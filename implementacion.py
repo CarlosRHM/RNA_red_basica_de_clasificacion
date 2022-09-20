@@ -7,7 +7,8 @@ training_data = list(training_data)
 test_data = list(test_data)
 
 net=network.Network([784,30,10])
-net.SGD( training_data, 30, 10, 0.3, test_data=test_data)
+#(datos de entrenamiento, epocas, mini_batch_size, eta, gamma:(0,1), test_data)
+net.SGD_inercia( training_data, 30, 10, 1.5, 0.9, test_data=test_data)
 
 archivo = open("red_prueba1.pkl",'wb')
 pickle.dump(net,archivo)

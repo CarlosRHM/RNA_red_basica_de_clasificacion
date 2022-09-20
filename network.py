@@ -2,7 +2,7 @@
 
 """
 Un modulo para implementar el algoritmo de aprendizaje stochastic
-gradient descent para una red neuronal feedforward.
+gradient descent con inercia para una red neuronal feedforward.
 Los gradientes son calculados usando backpropagation
 """
 
@@ -21,8 +21,16 @@ class Network(object):
         """
         self.num_layers = len(sizes)
         self.sizes = sizes
-        self.biases = [np.random.randn(y, 1) for y in sizes[1:]]
+        self.biases = [np.random.randn(y, 1)
+                        for y in sizes[1:]]
         self.weights = [np.random.randn(y, x)
+                        for x, y in zip(sizes[:-1], sizes[1:])]
+
+# momentos p de los bias y pesos, son del tamaño de los vectores de bias y
+# peso, se actualizan antes de los pesos y bias, inicializados en 0
+        self.p_b = [np.zeros((y, 1))
+                        for y in sizes[1:]]
+        self.p_w = [np.zeros((y, x))
                         for x, y in zip(sizes[:-1], sizes[1:])]
 
     def feedforward(self, a):
@@ -31,10 +39,12 @@ class Network(object):
             a = sigmoid(np.dot(w, a)+b)
         return a
 
-    def SGD(self, training_data, epochs, mini_batch_size, eta,
-            test_data=None):
+    def SGD_inercia(self, training_data, epochs, mini_batch_size, eta, gamma,\
+                       test_data=None):
         """
-        Entrena la red usando mini-batch stochastic gradient descent.
+        Entrena la red usando mini-batch stochastic gradient descent
+        con inercia.
+
         El "training_data" es una lista de tuplas "(x,y)", representa
         las entradas de entrenamiento y las salidas deseadas.
 
@@ -57,31 +67,37 @@ class Network(object):
                 for k in range(0, n, mini_batch_size)]
 
             for mini_batch in mini_batches:
-                self.update_mini_batch(mini_batch, eta)
+                self.update_mini_batch(mini_batch, eta, gamma)
             if test_data:
                 print("Epoch {} : {} / {}".format(j,self.evaluate(test_data),n_test))
             else:
                 print("Epoch {} complete".format(j))
-                plt.plot(epocas, costo)
 
-    def update_mini_batch(self, mini_batch, eta):
+    def update_mini_batch(self, mini_batch, eta, gamma):
         """
         Actualiza los pesos y biases de la red mediante la aplicación
-        de descenso de gradiente mediante la retropropagación a un único
+        de descenso de gradiente mediante back propagation a un único
         mini-batch.
         El "mini_batch" es una lista de tuplas "(x,y)", y "eta" es la tasa
         de aprendizaje.
         """
         nabla_b = [np.zeros(b.shape) for b in self.biases]
         nabla_w = [np.zeros(w.shape) for w in self.weights]
+
         for x, y in mini_batch:
             delta_nabla_b, delta_nabla_w = self.backprop(x, y)
             nabla_b = [nb+dnb for nb, dnb in zip(nabla_b, delta_nabla_b)]
             nabla_w = [nw+dnw for nw, dnw in zip(nabla_w, delta_nabla_w)]
-        self.weights = [w-(eta/len(mini_batch))*nw
-                        for w, nw in zip(self.weights, nabla_w)]
-        self.biases = [b-(eta/len(mini_batch))*nb
-                       for b, nb in zip(self.biases, nabla_b)]
+
+# Actualizacion de los momentos p_b, p_w
+        self.p_b = [-nb+(1-gamma)*p_b for p_b, nb in zip(self.p_b, nabla_b)]
+        self.p_w = [-nw+(1-gamma)*p_w for p_w, nw in zip(self.p_w, nabla_w)]
+
+# Actualizacion de los pesos y biases
+        self.weights = [w+(eta/len(mini_batch))*p_w
+                        for w, p_w in zip(self.weights, self.p_w)]
+        self.biases = [b+(eta/len(mini_batch))*p_b
+                       for b, p_b in zip(self.biases, self.p_b)]
 
     def backprop(self, x, y):
         """
@@ -91,6 +107,7 @@ class Network(object):
         """
         nabla_b = [np.zeros(b.shape) for b in self.biases]
         nabla_w = [np.zeros(w.shape) for w in self.weights]
+
         # feedforward
         activation = x
         activations = [x] # Lista de las activaciones capa por capa
